@@ -20,7 +20,8 @@ library(tmap)
 What do we need to change to get the data to load in the following chunk?
 
 ```{r}
-sfo_trees_df<-read_csv(here("data","trees")) |> janitor::clean_names()
+sfo_trees_df<-read_csv("data/sfo_trees/sfo_trees.csv") |> 
+  janitor::clean_names()
 ```
 
 ## Part 1: Data exploration
@@ -30,7 +31,9 @@ Look at `sfo_trees_df` dataframe. How many observations are there? What does the
 What are some interesting questions you could ask about the data?
 
 Write them below:
-
+582 different objects
+Questions?
+- 
 
 
 
@@ -62,7 +65,9 @@ Our boss tasked us with identifying oak and pine trees in SF based on legal stat
 
 Write pseudocode on how you would solve it
 
-
+get rid of all columns not what we want
+filter out plants that are not pine and oak
+summarize the counts of the oaks and pines
 
 
 
@@ -73,7 +78,11 @@ Data wrangle done below:
 
 
 ```{r}
-
+oak_pine_df<- sfo_trees_df |> 
+  filter(str_detect(species,"oak") | str_detect(species,"pine")) |>
+  select(species, legal_status, plant_date, latitude, longitude) |>
+  mutate(type=ifelse(str_detect(species,"oak"),"oak","pine"))
+oak_pine_df
 ```
 
 
@@ -81,7 +90,7 @@ Summary stats
 
 ```{r}
 oak_pine_count<-oak_pine_df |> 
-  group_by(legal_status,type)
+  group_by(legal_status,type)|>
   summarize(count=n())
 ```
 
@@ -90,7 +99,10 @@ oak_pine_count<-oak_pine_df |>
 Plot the locations of the trees as a scatterplot
 
 ```{r}
-
+oak_pine_plot <- ggplot(oak_pine_df, aes(x=longitude, y=latitude, color=type))+
+  theme_bw()+
+  geom_point()
+oak_pine_plot
 ```
 
 
@@ -100,7 +112,7 @@ Plot the locations of the trees as a scatterplot
 Why have a list of native trees in the data folder.
 
 ```{r}
-ca_native_df<-read_csv(here('data/sfo/ca_native_spp.csv'))
+ca_native_df<-read_csv(here('data/sfo_trees/ca_native_spp.csv'))
 
 # Why can I use this format instead of the usual here("data","folder","file")?
 ```
@@ -121,7 +133,24 @@ lubridate::year("2022-11-16")
 ```
 
 ```{r}
-oak_pine_year_df<-????
+sfo_trees_native<-sfo_trees_df |>
+  separate(species, into=c('spp_sci','spp_common'),sep=' :: ') |> #separates species common and scientific names
+  select(starts_with('spp'),'plant_date','legal_status','longitude','latitude') |>
+  mutate(ca_native=(spp_sci %in% ca_native_df$scientific_name))
+sfo_trees_native
+```
+
+
+```{r}
+oak_pine_year_df<-sfo_trees_native |>
+  filter(spp_sci %in% c('Quercus agrifolia', 'Pinus radiata')) |>
+  mutate(plant_year=lubridate::year(plant_date))
+  
+  
+  
+# wrangle data so that you can input into a t.test  
+
+t.test(plant_year~spp_sci, data=oak_pine_year_df)
 ```
 
 
@@ -146,11 +175,11 @@ Follow along as the instructor walks through each code chunk. In week 7 we'll co
 Set the coordinate reference system
 
 ```{r}
-oak_pine_sf<-oak_pine_year_df |> 
-  drop_na(longtide,latitude) |> 
+oak_pine_sf<-oak_pine_year_df |>   #sf = simple features object
+  drop_na(longitude,latitude) |> 
   st_as_sf(coords=c("longitude","latitude"))
 
-st_crs(oak_pine_sf)<-4326
+st_crs(oak_pine_sf)<-4326   #st_crs = set coord reference system
 
 ggplot(data=oak_pine_sf)+
   geom_sf(aes(color=spp_sci))+
@@ -180,7 +209,16 @@ ggplot(data = sfo_map) +
 We have all the ingredients. How would you plot these two together to see the trees locations in the city?
 
 ```{r}
-
+ggplot()+
+  geom_sf(data = sfo_map,
+          size=0.1,
+          color='darkgrey') +
+  geom_sf(data = oak_pine_sf,
+          aes(color=spp_sci),
+          size=0.5)+
+  theme_void()+
+  labs("Oak and Pine")
+          
 ```
 
 
